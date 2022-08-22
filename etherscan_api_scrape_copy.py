@@ -15,6 +15,19 @@ def init_connection():
     print(f"connection active? ", w3.isConnected())
     return w3
 
+def writeDistinctABIs(cur, logs_count, log, ETHERSCAN_TOKEN, db_add_count):
+    print(f"getting addresses from logs count: ", logs_count)
+    logs_count += 1
+    if cur.execute("SELECT address FROM contract WHERE address = (?)",(log["address"],)).fetchone() is None:
+        print(f"getting and writing ABI for address: ", log["address"])
+        response = call_api(log["address"], ETHERSCAN_TOKEN)
+    # ABI column in db is actually response; must be parsed as json later
+        cur.execute("INSERT INTO contract (address, ABI) VALUES (?, ?)",(log["address"], response))
+        db_add_count +=1
+    # print(response)
+    else:
+        print("## address already in db ##")
+
 def get_addresses_from_block(blockNumber, w3, ETHERSCAN_TOKEN, db_add_count):
     count = 0
     logs_count=0
@@ -30,17 +43,8 @@ def get_addresses_from_block(blockNumber, w3, ETHERSCAN_TOKEN, db_add_count):
         tx_logs = w3.eth.get_transaction_receipt(transaction["hash"])["logs"]
         # logs are a list of dictionaries
         for log in tx_logs:
-            print(f"getting addresses from logs count: ", logs_count)
-            logs_count += 1
-            if cur.execute("SELECT address FROM contract WHERE address = (?)",(log["address"],)).fetchone() is None:
-                print(f"getting and writing ABI for address: ", log["address"])
-                response = call_api(log["address"], ETHERSCAN_TOKEN)
-            # ABI column in db is actually response; must be parsed as json later
-                cur.execute("INSERT INTO contract (address, ABI) VALUES (?, ?)",(log["address"], response))
-                db_add_count +=1
-            # print(response)
-            else:
-                print("## address already in db ##")
+            # Don't actually know if having this new function is an improvement
+            writeDistinctABIs(cur, logs_count, log, ETHERSCAN_TOKEN, db_add_count)
     con.commit()
     con.close()
     return db_add_count
