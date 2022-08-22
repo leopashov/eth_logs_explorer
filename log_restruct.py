@@ -31,6 +31,18 @@ def contract_in_db(address):
     cur = con.cursor()
     return cur.execute("SELECT address FROM contract WHERE address = (?)", (address,)).fetchone() is not None
  
+def getABI(address):
+        # check if contract in db
+    if contract_in_db(address):
+        # if yes, get and parse abi
+        print("fetching from db")
+        ABI = getAbiDb(address)
+        # sql request for contract abi
+    else:
+        # if no, call etherscan api to get and parse abi
+        print("fetching from etherscan")
+        ABI = getAbiEtherscan(address)
+    return ABI
 
 def getAbiEtherscan(address):
     """ get abi from etherscan and write it to database. """
@@ -61,18 +73,17 @@ def main():
     w3 = init_connection()
     # print(get_logs(w3.eth.blockNumber-1, w3.eth.blockNumber, w3))
     # log is an individual address data tuple
-    for log in get_logs(w3.eth.blockNumber-3, w3.eth.blockNumber, w3):
-        # check if contract in db
-        if contract_in_db(log[0]):
-            # if yes, get and parse abi
-            print("fetching from db")
-            ABI = getAbiDb(log[0])
-            # sql request for contract abi
-        else:
-            # if no, call etherscan api to get and parse abi
-            print("fetching from etherscan")
-            ABI = getAbiEtherscan(log[0])
-        zipAbiData(ABI, log[1])
+    for blockNumber in range (w3.eth.blockNumber, w3.eth.blockNumber-5, -1):
+        print(f"getting logs from block: ", blockNumber)
+        block = w3.eth.getBlock(blockNumber, True)
+        # print(type(block))
+        for transaction in block.transactions:
+            tx_logs = w3.eth.get_transaction_receipt(transaction["hash"])["logs"]
+            # logs are a list of dictionaries
+            for log in tx_logs:
+                print(f"log: ",log)
+                ABI = getABI(log["address"])
+                zipAbiData(ABI, log["data"])
     print("actually finished")
 
 if __name__ =="__main__":
