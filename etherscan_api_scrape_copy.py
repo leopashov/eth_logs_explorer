@@ -45,6 +45,7 @@ def get_addresses_from_block(blockNumber, w3, ETHERSCAN_TOKEN, db_add_count):
         for log in tx_logs:
             # Don't actually know if having this new function is an improvement
             writeDistinctABIs(cur, logs_count, log, ETHERSCAN_TOKEN, db_add_count)
+
     con.commit()
     con.close()
     return db_add_count
@@ -68,9 +69,10 @@ def main():
     db_add_count = 0
     # connect to avado
     w3 = init_connection()
-    block_at_run = 15349967 # w3.eth.blockNumber
+
+    block_at_run = w3.eth.blockNumber
     # cycle through each block starting at most recent
-    for blockNumber in range(block_at_run, block_at_run-15000, -1):
+    for blockNumber in range(block_at_run, block_at_run-200, -1):
         new_addresses = get_addresses_from_block(blockNumber, w3, ETHERSCAN_TOKEN, db_add_count)
 
         # get abi for each contract
