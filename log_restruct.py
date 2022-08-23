@@ -64,7 +64,7 @@ def getAbiDb(address):
 
 def zipAbiData(ABI, data):
 # do banteg zip of abi and log data
-    pass
+    zip(ABI, data)
     
 
 
@@ -73,7 +73,7 @@ def main():
     w3 = init_connection()
     # print(get_logs(w3.eth.blockNumber-1, w3.eth.blockNumber, w3))
     # log is an individual address data tuple
-    for blockNumber in range (w3.eth.blockNumber, w3.eth.blockNumber-5, -1):
+    for blockNumber in range (w3.eth.blockNumber, w3.eth.blockNumber-1, -1):
         print(f"getting logs from block: ", blockNumber)
         block = w3.eth.getBlock(blockNumber, True)
         # print(type(block))
@@ -83,8 +83,11 @@ def main():
             for log in tx_logs:
                 print(f"log: ",log)
                 ABI = getABI(log["address"])
-                zipAbiData(ABI, log["data"])
+                zipped = zipAbiData(ABI, log)
     print("actually finished")
+    print(ABI)
+    print(log)
+    print(zipped)
 
 if __name__ =="__main__":
     main()
