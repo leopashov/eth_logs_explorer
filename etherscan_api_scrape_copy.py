@@ -5,9 +5,11 @@ import web3
 import time
 import sqlite3
 from ratelimit import limits, sleep_and_retry
+import json
+
+# run function in command line: python -c 'from foo import hello; print hello()'
 
 start_time = time.time()
-SEEN = set()
 
 def init_connection():
     avado_url = "http://ethchain-geth.my.ava.do:8545"
@@ -21,12 +23,14 @@ def writeDistinctABIs(cur, logs_count, log, ETHERSCAN_TOKEN, db_add_count):
     if cur.execute("SELECT address FROM contract WHERE address = (?)",(log["address"],)).fetchone() is None:
         print(f"getting and writing ABI for address: ", log["address"])
         response = call_api(log["address"], ETHERSCAN_TOKEN)
-    # ABI column in db is actually response; must be parsed as json later
+    # ABI column in db is just text, must be json parsed.
         cur.execute("INSERT INTO contract (address, ABI) VALUES (?, ?)",(log["address"], response))
-        db_add_count +=1
-    # print(response)
+        db_add_count += 1
+        print(response)
+        
     else:
         print("## address already in db ##")
+    return db_add_count
 
 def get_addresses_from_block(blockNumber, w3, ETHERSCAN_TOKEN, db_add_count):
     count = 0
@@ -39,12 +43,12 @@ def get_addresses_from_block(blockNumber, w3, ETHERSCAN_TOKEN, db_add_count):
     # print(type(block))
     for transaction in block.transactions:
         print(f"getting transaction: ", count)
-        count+=1
+        count += 1
         tx_logs = w3.eth.get_transaction_receipt(transaction["hash"])["logs"]
         # logs are a list of dictionaries
         for log in tx_logs:
             # Don't actually know if having this new function is an improvement
-            writeDistinctABIs(cur, logs_count, log, ETHERSCAN_TOKEN, db_add_count)
+            db_add_count = writeDistinctABIs(cur, logs_count, log, ETHERSCAN_TOKEN, db_add_count)
 
     con.commit()
     con.close()
@@ -57,7 +61,12 @@ def get_addresses_from_block(blockNumber, w3, ETHERSCAN_TOKEN, db_add_count):
 @limits(calls=5, period=1)
 def call_api(address, ETHERSCAN_TOKEN):
     URL = f"https://api.etherscan.io/api?module=contract&action=getabi&address={address}&apikey={ETHERSCAN_TOKEN}"
-    return requests.get(URL).content
+    response = json.loads(requests.get(URL).content)
+    if int(response["status"]) == 1:
+        return requests.get(URL).content
+
+    # b'{"status":"0","message":"NOTOK","result":"Too many invalid api key attempts, please try again later"}'
+    
         
 # eth_getCode -> to check if an address is a contract
 
@@ -66,13 +75,12 @@ def main():
     # get etherscan token from .env file
     load_dotenv()
     ETHERSCAN_TOKEN = os.getenv('ETHERSCAN_TOKEN')
-    db_add_count = 0
     # connect to avado
     w3 = init_connection()
-
+    db_add_count = 0
     block_at_run = w3.eth.blockNumber
     # cycle through each block starting at most recent
-    for blockNumber in range(block_at_run, block_at_run-200, -1):
+    for blockNumber in range(block_at_run, block_at_run-1, -1):
         new_addresses = get_addresses_from_block(blockNumber, w3, ETHERSCAN_TOKEN, db_add_count)
 
         # get abi for each contract
