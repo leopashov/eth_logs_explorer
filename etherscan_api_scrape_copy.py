@@ -17,16 +17,15 @@ def init_connection():
     print(f"connection active? ", w3.isConnected())
     return w3
 
-def writeDistinctABIs(cur, logs_count, log, ETHERSCAN_TOKEN, db_add_count):
-    print(f"getting addresses from logs count: ", logs_count)
-    logs_count += 1
+def writeDistinctABIs(cur, log, ETHERSCAN_TOKEN, db_add_count):
     if cur.execute("SELECT address FROM contract WHERE address = (?)",(log["address"],)).fetchone() is None:
         print(f"getting and writing ABI for address: ", log["address"])
         response = call_api(log["address"], ETHERSCAN_TOKEN)
     # ABI column in db is just text, must be json parsed.
-        cur.execute("INSERT INTO contract (address, ABI) VALUES (?, ?)",(log["address"], response))
-        db_add_count += 1
-        print(response)
+        if response is not None:
+            cur.execute("INSERT INTO contract (address, ABI) VALUES (?, ?)",(log["address"], response))
+            db_add_count += 1
+            print(response)
         
     else:
         print("## address already in db ##")
@@ -34,7 +33,6 @@ def writeDistinctABIs(cur, logs_count, log, ETHERSCAN_TOKEN, db_add_count):
 
 def get_addresses_from_block(blockNumber, w3, ETHERSCAN_TOKEN, db_add_count):
     count = 0
-    logs_count=0
     con = sqlite3.connect("./ABIs/contracts.db")
     cur = con.cursor()
     print(f"getting addresses from block: ", blockNumber)
@@ -48,7 +46,7 @@ def get_addresses_from_block(blockNumber, w3, ETHERSCAN_TOKEN, db_add_count):
         # logs are a list of dictionaries
         for log in tx_logs:
             # Don't actually know if having this new function is an improvement
-            db_add_count = writeDistinctABIs(cur, logs_count, log, ETHERSCAN_TOKEN, db_add_count)
+            db_add_count = writeDistinctABIs(cur, log, ETHERSCAN_TOKEN, db_add_count)
 
     con.commit()
     con.close()
